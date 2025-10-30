@@ -5,7 +5,8 @@ from dataclasses import dataclass, field
 from typing import Dict, Tuple, List, Optional
 import heapq
 
-from src.app.viewer import StepResult, Grid
+from src.core.types import StepResult, Grid
+
 
 Cell = Tuple[int, int]  # (col, row)
 
