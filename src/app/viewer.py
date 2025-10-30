@@ -1,22 +1,28 @@
 # src/app/viewer.py
 #!/usr/bin/env python3
 """
-Pathfinding Workshop Viewer
+Pathfinding Workshop Viewer — Race Theme
 
-- Loads maps/{01_intro_dijkstra.json, 02_small_astar.json, 03_weighted_grass.json}
-- Renders cells, start/goal, overlays for open/closed/path
+- Maps: 01_intro_dijkstra.json, 02_small_astar.json, 03_weighted_grass.json
 - Keyboard:
     [1]/[2]/[3]  -> switch map
     [D]/[A]      -> select algorithm (Dijkstra / A*)
     [SPACE]      -> run/pause
     [N]          -> single step
     [R]          -> reset
-    [+]/[-]      -> speed up / slow down (steps/sec)
+    [+]/[-]      -> steps/sec
     [Q]/[ESC]    -> quit
 
 Mode switch:
 - ENV: WORKSHOP_MODE=student|instructor
 - CLI: --mode=student|instructor
+
+Assets: put these in repo_root/assets/
+  asphalt.png
+  grass.png
+  tire_stack.png
+  f1.png
+  checkered_flag.png
 """
 
 # --- bootstrap import path so `from src...` works when run as a script ---
@@ -27,12 +33,18 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 # -------------------------------------------------------------------------
 
-from dataclasses import dataclass, field
 from typing import List, Tuple, Optional, Dict, Any
-
 import pygame
 
-# Shared types
+# -------------------- Assets (you provide these files) --------------------
+ASSETS_DIR      = Path(__file__).resolve().parents[2] / "assets"
+ASPHALT_IMG     = ASSETS_DIR / "asphalt.png"
+GRASS_IMG       = ASSETS_DIR / "grass.png"
+TIRESTACK_IMG   = ASSETS_DIR / "tire_stack.png"
+CAR_IMG         = ASSETS_DIR / "f1.png"
+FLAG_IMG        = ASSETS_DIR / "checkered_flag.png"
+
+# -------------------- Shared types --------------------
 from src.core.types import Grid, StepResult, Cell
 
 # ---------- Mode resolution & dynamic imports ----------
@@ -46,6 +58,7 @@ def resolve_mode() -> str:
 MODE = resolve_mode()
 
 if MODE == "instructor":
+    # answers/ implementations
     from src.core.answers.dijkstra_solution import DijkstraAlgo as DijkstraImpl
     from src.core.answers.astar_solution import AStarAlgo as AStarImpl
     try:
@@ -53,6 +66,7 @@ if MODE == "instructor":
     except Exception:
         DijkstraWeightedImpl = None
 else:
+    # student templates
     from src.core.dijkstra_template import DijkstraAlgo as DijkstraImpl
     from src.core.astar_template import AStarAlgo as AStarImpl
     DijkstraWeightedImpl = None
@@ -69,7 +83,7 @@ GRID_MARGIN = 16
 CELL_SIZE_DEFAULT = 24
 FONT_NAME = None  # default pygame font
 
-# Colors
+# Fallback colors (used if an asset is missing)
 WHITE       = (255,255,255)
 BLACK       = (  0,  0,  0)
 GRAY_20     = (220,220,220)
@@ -78,7 +92,71 @@ BLUE        = ( 70,130,180)
 RED         = (220, 50, 47)
 GREEN       = ( 46,139, 87)
 YELLOW      = (255,215,  0)
-GRASS_GREEN = (144, 238, 144)  # light green for grass cells (value 2)
+GRASS_GREEN = (144, 238, 144)
+ASPHALT_GRAY= (200,200,200)
+BG_DARK     = (30,30,36)
+
+# ---------- Asset loader / scaler ----------
+class _Assets:
+    """
+    Loads and caches images; provides scaled surfaces per cell size.
+    Falls back to None when file missing (viewer draws solid color fallback).
+    """
+    def __init__(self):
+        self._raw: Dict[str, Optional[pygame.Surface]] = {}
+        self._scaled_cache: Dict[Tuple[str, int], pygame.Surface] = {}
+
+    def _load(self, key: str, path: Path):
+        if key in self._raw:
+            return
+        if path.exists():
+            img = pygame.image.load(str(path))
+            # convert_alpha only if display surface exists
+            if pygame.display.get_surface():
+                img = img.convert_alpha()
+            self._raw[key] = img
+        else:
+            self._raw[key] = None  # fallback sentinel
+
+    def prepare(self):
+        # call AFTER display.set_mode
+        self._load("asphalt", ASPHALT_IMG)
+        self._load("grass",   GRASS_IMG)
+        self._load("tire",    TIRESTACK_IMG)
+        self._load("car",     CAR_IMG)
+        self._load("flag",    FLAG_IMG)
+
+    def get(self, key: str, cell_size: int) -> Optional[pygame.Surface]:
+        base = self._raw.get(key, None)
+        if base is None:
+            return None
+        cache_key = (key, cell_size)
+        if cache_key in self._scaled_cache:
+            return self._scaled_cache[cache_key]
+        target = max(1, int(cell_size))
+        if pygame.display.get_surface():
+            surf = pygame.transform.smoothscale(base, (target, target))
+        else:
+            surf = pygame.transform.scale(base, (target, target))
+        self._scaled_cache[cache_key] = surf
+        return surf
+
+    def get_centered(self, key: str, cell_size: int, scale_factor: float = 0.85) -> Optional[pygame.Surface]:
+        base = self._raw.get(key, None)
+        if base is None:
+            return None
+        target = max(1, int(cell_size * scale_factor))
+        cache_key = (f"{key}_icon", target)
+        if cache_key in self._scaled_cache:
+            return self._scaled_cache[cache_key]
+        if pygame.display.get_surface():
+            surf = pygame.transform.smoothscale(base, (target, target))
+        else:
+            surf = pygame.transform.scale(base, (target, target))
+        self._scaled_cache[cache_key] = surf
+        return surf
+
+ASSETS = _Assets()
 
 # ---------- Algorithm placeholder ----------
 class NoAlgo:
@@ -87,24 +165,12 @@ class NoAlgo:
         self._grid: Optional[Grid] = None
         self._steps = 0
     def init(self, grid: Grid) -> None:
-        self._grid = grid
-        self._steps = 0
+        self._grid = grid; self._steps = 0
     def reset(self) -> None:
         self._steps = 0
     def step(self) -> StepResult:
         self._steps += 1
-        return StepResult(
-            status="idle",
-            metrics={
-                "algo": self.name,
-                "popped": 0,
-                "open_size": 0,
-                "closed_count": 0,
-                "path_len": 0,
-                "total_cost": None,
-                "steps": self._steps,
-            },
-        )
+        return StepResult(status="idle", metrics={"algo": self.name, "steps": self._steps})
 
 # ---------- Loader ----------
 def load_map(path: Path) -> Grid:
@@ -118,8 +184,7 @@ def load_map(path: Path) -> Grid:
     cells  = data["cells"]
     weights = data.get("weights", {})
     assert len(cells) == height and all(len(r) == width for r in cells), "cells size mismatch"
-    sx, sy = start
-    gx, gy = goal
+    sx, sy = start; gx, gy = goal
     assert 0 <= sx < width and 0 <= sy < height, "start out of bounds"
     assert 0 <= gx < width and 0 <= gy < height, "goal out of bounds"
     return Grid(width, height, cells, start, goal, move, weights)
@@ -128,6 +193,7 @@ def load_map(path: Path) -> Grid:
 class Viewer:
     def __init__(self, grid: Grid):
         pygame.init()
+
         self.grid = grid
         self.cell_size = self._auto_cell_size(grid)
         self.font_small = pygame.font.Font(FONT_NAME, 14)
@@ -140,7 +206,10 @@ class Viewer:
         win_w = grid_px_w + PANEL_W
         win_h = grid_px_h
         self.screen = pygame.display.set_mode((win_w, win_h))
-        pygame.display.set_caption("Pathfinding Workshop Viewer")
+        pygame.display.set_caption("Pathfinding Workshop Viewer — Race Theme")
+
+        # IMPORTANT: load assets AFTER the display exists
+        ASSETS.prepare()
 
         self.open_set: set[Cell] = set()
         self.closed_set: set[Cell] = set()
@@ -167,17 +236,15 @@ class Viewer:
 
     def _infer_map_key(self) -> str:
         for k,p in MAP_FILES.items():
-            try:
-                g = load_map(p)
-            except Exception:
-                continue
+            try: g = load_map(p)
+            except Exception: continue
             if (g.width, g.height) == (self.grid.width, self.grid.height) and g.start == self.grid.start and g.goal == self.grid.goal:
                 return k
         return "custom"
 
     def _auto_cell_size(self, grid: Grid) -> int:
         target_h = 720 - GRID_MARGIN*2
-        size = max(10, min(CELL_SIZE_DEFAULT, target_h // grid.height))
+        size = max(14, min(CELL_SIZE_DEFAULT, target_h // grid.height))
         return size
 
     def run(self):
@@ -264,8 +331,7 @@ class Viewer:
             self._reset_overlays()
             self.algo = self._make_algo(self.selected_algo)
             self.algo.init(self.grid)
-            self.running = False
-            self.state = "Idle"
+            self.running = False; self.state = "Idle"
         except Exception as ex:
             print(f"Failed to load map {key}: {ex}")
 
@@ -295,58 +361,91 @@ class Viewer:
         self.algo.reset()
         self._reset_overlays()
 
+    # ---------- drawing ----------
     def _draw(self):
-        self.screen.fill(GRAY_20)
+        # neutral background so textures pop
+        self.screen.fill(BG_DARK)
         self._draw_grid()
         self._draw_panel()
         pygame.display.flip()
 
     def _draw_grid(self):
         cs = self.cell_size
+
+        # prefetch scaled textures
+        asphalt = ASSETS.get("asphalt", cs)
+        grass   = ASSETS.get("grass",   cs)
+        tire    = ASSETS.get("tire",    cs)
+        car     = ASSETS.get_centered("car",  cs, scale_factor=0.85)
+        flag    = ASSETS.get_centered("flag", cs, scale_factor=0.85)
+
+        # tiles
         for row in range(self.grid.height):
             for col in range(self.grid.width):
                 v = self.grid.cells[row][col]
                 rect = pygame.Rect(GRID_MARGIN + col*cs, GRID_MARGIN + row*cs, cs, cs)
-                if str(v) in self.grid.weights and self.grid.weights[str(v)] == "BLOCK":
-                    color = BLACK
-                elif v == 1:
-                    color = BLACK
+
+                # choose texture/fallback
+                is_block = (str(v) in self.grid.weights and self.grid.weights[str(v)] == "BLOCK") or v == 1
+                if is_block:
+                    if tire:
+                        self.screen.blit(tire, rect.topleft)
+                    else:
+                        pygame.draw.rect(self.screen, BLACK, rect)
                 elif v == 2:
-                    color = GRASS_GREEN
+                    if grass:
+                        self.screen.blit(grass, rect.topleft)
+                    else:
+                        pygame.draw.rect(self.screen, GRASS_GREEN, rect)
                 else:
-                    color = WHITE
-                pygame.draw.rect(self.screen, color, rect)
+                    if asphalt:
+                        self.screen.blit(asphalt, rect.topleft)
+                    else:
+                        pygame.draw.rect(self.screen, ASPHALT_GRAY, rect)
+
+                # cell outline for readability
                 pygame.draw.rect(self.screen, GRAY_60, rect, 1)
 
+        # overlays: closed then open
         for (col,row) in self.closed_set:
             rect = pygame.Rect(GRID_MARGIN + col*cs, GRID_MARGIN + row*cs, cs, cs)
-            s = pygame.Surface((cs, cs), pygame.SRCALPHA); s.fill((120,120,120,120))
+            s = pygame.Surface((cs, cs), pygame.SRCALPHA)
+            s.fill((120,120,120,110))
             self.screen.blit(s, rect.topleft)
 
         for (col,row) in self.open_set:
             rect = pygame.Rect(GRID_MARGIN + col*cs, GRID_MARGIN + row*cs, cs, cs)
-            s = pygame.Surface((cs, cs), pygame.SRCALPHA); s.fill((173,216,230,140))
+            s = pygame.Surface((cs, cs), pygame.SRCALPHA)
+            s.fill((0,180,255,110))
             self.screen.blit(s, rect.topleft)
 
+        # path polyline
         if len(self.path) >= 2:
             pts = []
             for (col,row) in self.path:
                 cx0 = GRID_MARGIN + col*cs + cs//2
                 cy0 = GRID_MARGIN + row*cs + cs//2
                 pts.append((cx0, cy0))
-            pygame.draw.lines(self.screen, GREEN, False, pts, 4)
+            pygame.draw.lines(self.screen, GREEN, False, pts, 5)
 
-        self._draw_badge(self.grid.start, "S", BLUE)
-        self._draw_badge(self.grid.goal,  "G", RED)
+        # start / goal icons
+        self._draw_badge_icon(self.grid.start, car,  BLUE)
+        self._draw_badge_icon(self.grid.goal,  flag, RED)
 
-    def _draw_badge(self, cell: Cell, label: str, color: Tuple[int,int,int]):
+    def _draw_badge_icon(self, cell: Cell, icon: Optional[pygame.Surface], fallback_color: Tuple[int,int,int]):
         cs = self.cell_size
         col,row = cell
         cx = GRID_MARGIN + col*cs + cs//2
         cy = GRID_MARGIN + row*cs + cs//2
-        pygame.draw.circle(self.screen, color, (cx,cy), max(10, cs//2 - 2))
-        txt = self.font_small.render(label, True, (255,255,255))
-        self.screen.blit(txt, txt.get_rect(center=(cx,cy)))
+        if icon is not None:
+            rect = icon.get_rect(center=(cx, cy))
+            self.screen.blit(icon, rect)
+        else:
+            # fallback: colored circle + letter
+            pygame.draw.circle(self.screen, fallback_color, (cx,cy), max(10, cs//2 - 2))
+            lbl = "S" if (col,row) == self.grid.start else "G"
+            txt = self.font_small.render(lbl, True, (255,255,255))
+            self.screen.blit(txt, txt.get_rect(center=(cx,cy)))
 
     def _draw_panel(self):
         grid_px_w = GRID_MARGIN*2 + self.grid.width * self.cell_size
