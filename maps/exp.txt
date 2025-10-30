@@ -1,0 +1,41 @@
+Quick sanity notes (so you can explain it in 60 seconds)
+
+Legend: 0 = free, 1 = wall.
+
+Walls:
+
+A vertical wall at column 7 (0-indexed) with gaps at rows 6 and 16.
+
+A horizontal wall across row 12 from columns 4..24 with a door at column 14.
+
+Movement: 4-connected (up/down/left/right), uniform cost = 1.
+
+Why this works for beginners: They’ll naturally discover they must
+
+reach the upper gap to cross right,
+
+then find the door at (14,12) to pass the horizontal wall,
+
+and head to the goal.
+
+Reference optimal path length (for your metrics sheet): ≈ 44 steps (4-connected, uniform cost).
+
+Don’t tell them upfront; use it to check their outputs.
+
+If you’re happy with this, say “lock it” and we’ll move to Exercise-1 spec (what they must do, acceptance checks, and the exact on-screen UI prompts) — still no code.
+
+
+How this teaches the lesson
+
+Legend: 0 = road (cost 1), 1 = wall (BLOCK), 2 = grass (cost 3).
+
+Design: rows 10–14 are a grass band (costly) across the map.
+Two narrow road “bridges” at columns 8 and 16 pierce the band (those cells are 0), so students must choose:
+
+shorter distance through grass (expensive), or
+
+a slight detour to a bridge (longer in steps, cheaper total cost).
+
+Extra friction: vertical walls at columns 7 and 17 with a few gaps force real decisions about which bridge is reachable.
+
+
