@@ -36,6 +36,12 @@ if str(_REPO_ROOT) not in sys.path:
 from typing import List, Tuple, Optional, Dict, Any
 import pygame
 
+# --- optional theme/skin plug-in ---
+try:
+    from src.app import theme_skin as THEME  # same folder, optional
+except Exception:
+    THEME = None
+
 # -------------------- Assets (you provide these files) --------------------
 ASSETS_DIR      = Path(__file__).resolve().parents[2] / "assets"
 ASPHALT_IMG     = ASSETS_DIR / "asphalt.png"
@@ -200,16 +206,27 @@ class Viewer:
         self.font = pygame.font.Font(FONT_NAME, 18)
         self.font_big = pygame.font.Font(FONT_NAME, 22)
 
+        # expose constants so theme_skin can read them off `self`
+        self.GRID_MARGIN = GRID_MARGIN
+        self.PANEL_W     = PANEL_W
+        self.MODE        = MODE
+
+        # initial window (resizable)
+        # start with a reasonable size based on default cell size
         grid_px_w = GRID_MARGIN*2 + grid.width * self.cell_size
         grid_px_h = GRID_MARGIN*2 + grid.height* self.cell_size
-        self.canvas_rect = pygame.Rect(0, 0, grid_px_w, grid_px_h)
         win_w = grid_px_w + PANEL_W
         win_h = grid_px_h
-        self.screen = pygame.display.set_mode((win_w, win_h))
+        self.screen = pygame.display.set_mode((win_w, win_h), pygame.RESIZABLE)
         pygame.display.set_caption("Pathfinding Workshop Viewer — Race Theme")
+
+        # compute initial layout (center + scale for current window)
+        self._layout(win_w, win_h)
 
         # IMPORTANT: load assets AFTER the display exists
         ASSETS.prepare()
+        if THEME and hasattr(THEME, "prepare"):
+            THEME.prepare(ASSETS)  # let the skin cache/adjust anything it needs
 
         self.open_set: set[Cell] = set()
         self.closed_set: set[Cell] = set()
@@ -233,6 +250,41 @@ class Viewer:
             "total_cost": None,
             "steps": 0,
         }
+
+    # ---------- layout: scale + center ----------
+    def _layout(self, win_w: int, win_h: int):
+        """
+        Compute an integer cell_size that fits the window and center the grid.
+        Also prepares canvas_rect and a top-left draw origin.
+        """
+        # Leave space for side panel on the right
+        avail_w = max(1, win_w - PANEL_W - 2 * GRID_MARGIN)
+        avail_h = max(1, win_h - 2 * GRID_MARGIN)
+
+        # Choose a uniform cell size that fits both width and height
+        cs_by_w = avail_w // self.grid.width
+        cs_by_h = avail_h // self.grid.height
+        self.cell_size = int(max(8, min(cs_by_w, cs_by_h))) or 8
+
+        grid_draw_w = self.grid.width  * self.cell_size
+        grid_draw_h = self.grid.height * self.cell_size
+
+        # total grid plate including its inner margin
+        grid_plate_w = grid_draw_w + 2 * GRID_MARGIN
+        grid_plate_h = grid_draw_h + 2 * GRID_MARGIN
+
+        # Center the grid plate in the remaining area (left area)
+        left_area_w = win_w - PANEL_W
+        left_area_h = win_h
+        left_x = max(0, (left_area_w - grid_plate_w) // 2)
+        top_y  = max(0, (left_area_h - grid_plate_h) // 2)
+
+        # canvas_rect bounds the grid plate (used by themes)
+        self.canvas_rect = pygame.Rect(left_x, top_y, grid_plate_w, grid_plate_h)
+
+        # origin where tile (0,0) is drawn
+        self._grid_origin = (self.canvas_rect.x + GRID_MARGIN,
+                             self.canvas_rect.y + GRID_MARGIN)
 
     def _infer_map_key(self) -> str:
         for k,p in MAP_FILES.items():
@@ -307,6 +359,10 @@ class Viewer:
                     self._switch_algo("Dijkstra")
                 elif e.key == pygame.K_a:
                     self._switch_algo("A*")
+            elif e.type == pygame.VIDEORESIZE:
+                # keep window resizable and recompute layout
+                self.screen = pygame.display.set_mode((e.w, e.h), pygame.RESIZABLE)
+                self._layout(e.w, e.h)
 
     def _make_algo(self, label: str):
         if label == "Dijkstra":
@@ -327,10 +383,11 @@ class Viewer:
             self.grid = load_map(MAP_FILES[key])
             self.selected_map_key = key
             pygame.display.set_caption(f"Pathfinding Workshop Viewer — {key}")
-            self.cell_size = self._auto_cell_size(self.grid)
+            # keep scale/center for the new grid size
             self._reset_overlays()
             self.algo = self._make_algo(self.selected_algo)
             self.algo.init(self.grid)
+            self._layout(*self.screen.get_size())
             self.running = False; self.state = "Idle"
         except Exception as ex:
             print(f"Failed to load map {key}: {ex}")
@@ -340,6 +397,8 @@ class Viewer:
         self.algo = self._make_algo(label)
         self.algo.init(self.grid)
         self._reset_overlays()
+        # layout unchanged but we recompute to keep canvas_rect consistent
+        self._layout(*self.screen.get_size())
 
     def _reset_overlays(self):
         self.open_set.clear()
@@ -363,14 +422,17 @@ class Viewer:
 
     # ---------- drawing ----------
     def _draw(self):
-        # neutral background so textures pop
-        self.screen.fill(BG_DARK)
-        self._draw_grid()
-        self._draw_panel()
+        if THEME and hasattr(THEME, "draw"):
+            THEME.draw(self, self.screen, ASSETS)  # skin owns visuals
+        else:
+            self.screen.fill(BG_DARK)
+            self._draw_grid()
+            self._draw_panel()
         pygame.display.flip()
 
     def _draw_grid(self):
         cs = self.cell_size
+        ox, oy = self._grid_origin  # centered origin
 
         # prefetch scaled textures
         asphalt = ASSETS.get("asphalt", cs)
@@ -383,7 +445,7 @@ class Viewer:
         for row in range(self.grid.height):
             for col in range(self.grid.width):
                 v = self.grid.cells[row][col]
-                rect = pygame.Rect(GRID_MARGIN + col*cs, GRID_MARGIN + row*cs, cs, cs)
+                rect = pygame.Rect(ox + col*cs, oy + row*cs, cs, cs)
 
                 # choose texture/fallback
                 is_block = (str(v) in self.grid.weights and self.grid.weights[str(v)] == "BLOCK") or v == 1
@@ -408,13 +470,13 @@ class Viewer:
 
         # overlays: closed then open
         for (col,row) in self.closed_set:
-            rect = pygame.Rect(GRID_MARGIN + col*cs, GRID_MARGIN + row*cs, cs, cs)
+            rect = pygame.Rect(ox + col*cs, oy + row*cs, cs, cs)
             s = pygame.Surface((cs, cs), pygame.SRCALPHA)
             s.fill((120,120,120,110))
             self.screen.blit(s, rect.topleft)
 
         for (col,row) in self.open_set:
-            rect = pygame.Rect(GRID_MARGIN + col*cs, GRID_MARGIN + row*cs, cs, cs)
+            rect = pygame.Rect(ox + col*cs, oy + row*cs, cs, cs)
             s = pygame.Surface((cs, cs), pygame.SRCALPHA)
             s.fill((0,180,255,110))
             self.screen.blit(s, rect.topleft)
@@ -423,8 +485,8 @@ class Viewer:
         if len(self.path) >= 2:
             pts = []
             for (col,row) in self.path:
-                cx0 = GRID_MARGIN + col*cs + cs//2
-                cy0 = GRID_MARGIN + row*cs + cs//2
+                cx0 = ox + col*cs + cs//2
+                cy0 = oy + row*cs + cs//2
                 pts.append((cx0, cy0))
             pygame.draw.lines(self.screen, GREEN, False, pts, 5)
 
@@ -434,9 +496,10 @@ class Viewer:
 
     def _draw_badge_icon(self, cell: Cell, icon: Optional[pygame.Surface], fallback_color: Tuple[int,int,int]):
         cs = self.cell_size
+        ox, oy = self._grid_origin
         col,row = cell
-        cx = GRID_MARGIN + col*cs + cs//2
-        cy = GRID_MARGIN + row*cs + cs//2
+        cx = ox + col*cs + cs//2
+        cy = oy + row*cs + cs//2
         if icon is not None:
             rect = icon.get_rect(center=(cx, cy))
             self.screen.blit(icon, rect)
@@ -448,8 +511,9 @@ class Viewer:
             self.screen.blit(txt, txt.get_rect(center=(cx,cy)))
 
     def _draw_panel(self):
-        grid_px_w = GRID_MARGIN*2 + self.grid.width * self.cell_size
-        panel_rect = pygame.Rect(grid_px_w, 0, PANEL_W, GRID_MARGIN*2 + self.grid.height*self.cell_size)
+        # Panel pinned to the right edge and full height of window
+        win_w, win_h = self.screen.get_size()
+        panel_rect = pygame.Rect(win_w - PANEL_W, 0, PANEL_W, win_h)
         pygame.draw.rect(self.screen, (245,245,245), panel_rect)
 
         x0 = panel_rect.x + 14
@@ -492,6 +556,7 @@ class Viewer:
             "[N]     Step once",
             "[+/-]   Speed",
             "[Q/ESC] Quit",
+            "Resize window: grid centers & scales",
         ]:
             line(c)
 
