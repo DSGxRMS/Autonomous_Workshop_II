@@ -1,9 +1,9 @@
-# src/core/dijkstra_template.py
+# src/core/dijkstra_solution.py
 #!/usr/bin/env python3
-
 from dataclasses import dataclass, field
 from typing import Dict, Tuple, List, Optional
 import heapq
+from math import inf
 
 from src.core.types import StepResult, Grid
 
@@ -32,14 +32,9 @@ class DijkstraAlgo:
     def reset(self) -> None:
         if self.grid is None:
             return
-        self.open_pq.clear()
-        self.open_set.clear()
-        self.closed_set.clear()
-        self.g.clear()
-        self.parent.clear()
-        self.popped_count = 0
-        self.done = False
-        self.no_path = False
+        self.open_pq.clear(); self.open_set.clear(); self.closed_set.clear()
+        self.g.clear(); self.parent.clear()
+        self.popped_count = 0; self.done = False; self.no_path = False
         self.goal_cell = self.grid.goal
 
         s = self.grid.start
@@ -49,44 +44,21 @@ class DijkstraAlgo:
 
     def _neighbors4(self, c: Cell) -> List[Cell]:
         x, y = c
-
-        ######################
-        ######################
-        # FILL CODE HERE for (N NEIGHBOR_CANDIDATES)
-        candidates: List[Cell] = [
-            
-            
-            
-        ]
-        ######################
-        ######################
-
+        cand = [(x+1,y),(x-1,y),(x,y+1),(x,y-1)]
         out: List[Cell] = []
-        for n in candidates:
-            
+        for n in cand:
             if self.grid.in_bounds(n) and not self.grid.is_block(n):
                 out.append(n)
-
-            pass  # keep 'pass' so file runs before they fill; harmless once they add code
         return out
 
     def _reconstruct_path(self, end: Cell) -> List[Cell]:
         path: List[Cell] = []
         cur = end
-        while True:
+        while cur in self.parent or cur == self.grid.start:
             path.append(cur)
             if cur == self.grid.start:
                 break
-
-            ######################
-            ######################
-            # FILL CODE HERE for (BACKTRACK_STEP)
-            
-            # cur = 
-            
-            ######################
-            ######################
-
+            cur = self.parent[cur]
         path.reverse()
         return path
 
@@ -107,46 +79,29 @@ class DijkstraAlgo:
             return StepResult(status="no_path", metrics={"algo": self.name})
 
         g_u, u = heapq.heappop(self.open_pq)
-        if g_u != self.g.get(u, float("inf")):
+        if g_u != self.g.get(u, inf):
             return StepResult(status="running", current=u, metrics=self._metrics())
 
         self.popped_count += 1
-        if u in self.open_set:
-            self.open_set.remove(u)
+        if u in self.open_set: self.open_set.remove(u)
         self.closed_set.add(u)
 
-        ######################
-        ######################
-        # FILL CODE HERE for (STOP_CONDITION)
-        # if u == 
-        
-        
-        
-        ######################    Uncomment these vv
-        ######################
-            # return StepResult(status="done", closed=[u], current=u, path=path,
-            #                   metrics=self._metrics(path_len=len(path)))
+        if u == self.goal_cell:
+            self.done = True
+            path = self._reconstruct_path(u)
+            return StepResult(status="done", closed=[u], current=u, path=path,
+                              metrics=self._metrics(path_len=len(path)))
 
         opened_now: List[Cell] = []
         for v in self._neighbors4(u):
-
-            ######################
-            ######################
-            # FILL CODE HERE for (RELAXATION_VALUE with Uniform Cost)
-            # alt = 
-            ######################
-            ######################
-
-
-            if alt < self.g.get(v, float("inf")):
+            alt = self.g[u] + 1  # uniform grid
+            if alt < self.g.get(v, inf):
                 self.g[v] = alt
                 self.parent[v] = u
                 heapq.heappush(self.open_pq, (self.g[v], v))
                 if v not in self.closed_set and v not in self.open_set:
                     self.open_set.add(v)
                     opened_now.append(v)
-
-            pass
 
         return StepResult(status="running", opened=opened_now, closed=[u], current=u,
                           metrics=self._metrics())
@@ -160,16 +115,3 @@ class DijkstraAlgo:
             "path_len": path_len,
             "total_cost": None,
         }
-
-# Notes
-'''
-Neighbor candidates: for (x,y), the four 4-connected moves.
-
-Neighbor filter: keep only “in bounds” and “not a wall”.
-
-Stop condition: “stop when you pop the goal” (not when you first push).
-
-Relaxation value: alt = (uniform cost).
-
-Backtrack step: Update cur to its parent.
-'''

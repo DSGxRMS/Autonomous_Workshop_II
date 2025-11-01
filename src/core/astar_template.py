@@ -124,7 +124,7 @@ class AStarAlgo:
             ######################
             # FILL CODE HERE (BACKTRACK_STEP)
             
-            cur = 
+            # cur = 
             ######################
             ######################
 
@@ -196,7 +196,7 @@ class AStarAlgo:
             ######################
             ######################
             # FILL CODE HERE (RELAXATION_VALUE)
-            alt = 
+            # alt = 
 
             ######################
             ######################
