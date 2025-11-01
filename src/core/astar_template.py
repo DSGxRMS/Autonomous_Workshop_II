@@ -1,18 +1,4 @@
 #!/usr/bin/env python3
-"""
-A* (student template) — one expansion per step() for animation.
-
-Implements the Algorithm API expected by the viewer:
-- init(grid) - reset() - step() -> StepResult
-
-Heuristic:
-- Manhattan for 4-connected grids.
-- Scaled by the minimum traversable cell cost if weights exist (keeps h admissible).
-
-Tie-breaking in the PQ (already wired, students don't edit):
-- (f, h, -g, seq, cell): lower f, then lower h, then deeper g, then FIFO by seq.
-"""
-
 from dataclasses import dataclass, field
 from typing import Dict, Tuple, List, Optional
 import heapq
@@ -40,7 +26,6 @@ class AStarAlgo:
     goal_cell: Optional[Cell] = None
     seq: int = 0  # monotonic counter for PQ stability
 
-    # -------------------- lifecycle --------------------
 
     def init(self, grid: Grid) -> None:
         """Initialize on a given grid."""
@@ -68,7 +53,6 @@ class AStarAlgo:
         heapq.heappush(self.open_pq, (f0, self._h(s), -self.g[s], self._bump(), s))
         self.open_set.add(s)
 
-    # -------------------- helpers (kept implemented) --------------------
 
     def _bump(self) -> int:
         self.seq += 1
@@ -82,10 +66,7 @@ class AStarAlgo:
         ######################
         # FILL CODE HERE (NEIGHBOR_CANDIDATES)
         candidates: List[Cell] = [
-            # (x + 1, y),
-            # (x - 1, y),
-            # (x, y + 1),
-            # (x, y - 1),
+           
         ]
         ######################
         ######################
@@ -96,12 +77,12 @@ class AStarAlgo:
             ######################
             ######################
             # FILL CODE HERE (NEIGHBOR_FILTER)
-            # if self.grid.in_bounds(n) and not self.grid.is_block(n):
-            #     out.append(n)
+        
+        
             ######################
             ######################
 
-            pass  # harmless until students add the two lines above
+            pass  
         return out
 
     def _min_traversable_cost(self) -> int:
@@ -126,6 +107,7 @@ class AStarAlgo:
             return 0
         (x, y) = c
         (gx, gy) = self.grid.goal
+        # Note how the heuristic is implemented
         dx = abs(gx - x)
         dy = abs(gy - y)
         return (dx + dy) * self._min_traversable_cost()
@@ -141,7 +123,8 @@ class AStarAlgo:
             ######################
             ######################
             # FILL CODE HERE (BACKTRACK_STEP)
-            # cur = self.parent[cur]
+            
+            cur = 
             ######################
             ######################
 
@@ -149,7 +132,6 @@ class AStarAlgo:
         path.reverse()
         return path
 
-    # -------------------- main stepping logic --------------------
 
     def step(self) -> StepResult:
         """
@@ -190,50 +172,44 @@ class AStarAlgo:
             self.open_set.remove(u)
         self.closed_set.add(u)
 
-        ######################
-        ######################
-        # FILL CODE HERE (STOP_CONDITION)
-        # if u == self.goal_cell:
-        #     self.done = True
-        #     path = self._reconstruct_path(u)
-        #     return StepResult(
-        #         status="done",
-        #         closed=[u],
-        #         current=u,
-        #         path=path,
-        #         metrics=self._metrics(path_len=len(path)),
-        #     )
-        ######################
-        ######################
+
+        if u == self.goal_cell:
+            self.done = True
+            path = self._reconstruct_path(u)
+            return StepResult(
+                status="done",
+                closed=[u],
+                current=u,
+                path=path,
+                metrics=self._metrics(path_len=len(path)),
+            )
+
 
         # Relax neighbors
         opened_now: List[Cell] = []
         for v in self._neighbors4(u):
             try:
-                step_cost = self.grid.cost_of(v)  # weight(dest) if provided
+                step_cost = self.grid.cost_of(v)  
             except Exception:
                 step_cost = 1
 
             ######################
             ######################
             # FILL CODE HERE (RELAXATION_VALUE)
-            # alt = self.g[u] + step_cost
-            ######################
-            ######################
+            alt = 
 
             ######################
             ######################
+
             # FILL CODE HERE (UPDATE_AND_PUSH)
-            # if alt < self.g.get(v, inf):
-            #     self.g[v] = alt
-            #     self.parent[v] = u
-            #     f_v = self.g[v] + self._h(v)
-            #     heapq.heappush(self.open_pq, (f_v, self._h(v), -self.g[v], self._bump(), v))
-            #     if v not in self.closed_set and v not in self.open_set:
-            #         self.open_set.add(v)
-            #         opened_now.append(v)
-            ######################
-            ######################
+            if alt < self.g.get(v, inf):
+                self.g[v] = alt
+                self.parent[v] = u
+                f_v = self.g[v] + self._h(v)
+                heapq.heappush(self.open_pq, (f_v, self._h(v), -self.g[v], self._bump(), v))
+                if v not in self.closed_set and v not in self.open_set:
+                    self.open_set.add(v)
+                    opened_now.append(v)
 
             pass
 
@@ -256,3 +232,11 @@ class AStarAlgo:
             "path_len": path_len,
             "total_cost": None,  # you can fill this with g[goal] in a weighted map if you want
         }
+
+'''
+Nearly the same steps as the previous code. But now with A* specifics.
+Do remember!
+The relaxation value now varies based on the cost of entering the neighbor cell.
+Hence the heuristic needs to be scaled by minimum traversable cost.
+Also the variable alt cannot simply be g[u] + 1 anymore.
+'''
