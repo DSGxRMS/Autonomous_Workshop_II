@@ -52,26 +52,20 @@ class DijkstraAlgo:
 
         ######################
         ######################
-        # FILL CODE HERE for (NEIGHBOR_CANDIDATES)
+        # FILL CODE HERE for (N NEIGHBOR_CANDIDATES)
         candidates: List[Cell] = [
-            # (x + 1, y),
-            # (x - 1, y),
-            # (x, y + 1),
-            # (x, y - 1),
+            
+            
+            
         ]
         ######################
         ######################
 
         out: List[Cell] = []
         for n in candidates:
-
-            ######################
-            ######################
-            # FILL CODE HERE for (NEIGHBOR_FILTER)
-            # if self.grid.in_bounds(n) and not self.grid.is_block(n):
-            #     out.append(n)
-            ######################
-            ######################
+            
+            if self.grid.in_bounds(n) and not self.grid.is_block(n):
+                out.append(n)
 
             pass  # keep 'pass' so file runs before they fill; harmless once they add code
         return out
@@ -87,7 +81,9 @@ class DijkstraAlgo:
             ######################
             ######################
             # FILL CODE HERE for (BACKTRACK_STEP)
-            # cur = self.parent[cur]
+            
+            cur = 
+            
             ######################
             ######################
 
@@ -122,36 +118,33 @@ class DijkstraAlgo:
         ######################
         ######################
         # FILL CODE HERE for (STOP_CONDITION)
-        # if u == self.goal_cell:
-        #     self.done = True
-        #     path = self._reconstruct_path(u)
-        #     return StepResult(status="done", closed=[u], current=u, path=path,
-        #                       metrics=self._metrics(path_len=len(path)))
+        if u == 
+        
+        
+        
         ######################
         ######################
+            return StepResult(status="done", closed=[u], current=u, path=path,
+                              metrics=self._metrics(path_len=len(path)))
 
         opened_now: List[Cell] = []
         for v in self._neighbors4(u):
 
             ######################
             ######################
-            # FILL CODE HERE for (RELAXATION_VALUE)
-            # alt = self.g[u] + 1
+            # FILL CODE HERE for (RELAXATION_VALUE with Uniform Cost)
+            alt = 
             ######################
             ######################
 
-            ######################
-            ######################
-            # FILL CODE HERE for (UPDATE_AND_PUSH)
-            # if alt < self.g.get(v, float("inf")):
-            #     self.g[v] = alt
-            #     self.parent[v] = u
-            #     heapq.heappush(self.open_pq, (self.g[v], v))
-            #     if v not in self.closed_set and v not in self.open_set:
-            #         self.open_set.add(v)
-            #         opened_now.append(v)
-            ######################
-            ######################
+
+            if alt < self.g.get(v, float("inf")):
+                self.g[v] = alt
+                self.parent[v] = u
+                heapq.heappush(self.open_pq, (self.g[v], v))
+                if v not in self.closed_set and v not in self.open_set:
+                    self.open_set.add(v)
+                    opened_now.append(v)
 
             pass
 
@@ -168,21 +161,15 @@ class DijkstraAlgo:
             "total_cost": None,
         }
 
-
+# Notes
 '''
-What you’ll explain (pseudo, concise)
-
 Neighbor candidates: for (x,y), the four 4-connected moves.
 
 Neighbor filter: keep only “in bounds” and “not a wall”.
 
 Stop condition: “stop when you pop the goal” (not when you first push).
 
-Relaxation value: alt = g[u] + 1 (uniform cost).
+Relaxation value: alt = (uniform cost).
 
-Update & push: if better, update g and parent, push to PQ, mark frontier.
-
-Backtrack step: cur = parent[cur] until start; reverse list.
-
-This version forces a bit more reasoning (they decide all three core places: neighbor generation, stopping, and relaxation/update), but it’s still doable for freshers in-session.
+Backtrack step: Update cur to its parent.
 '''
