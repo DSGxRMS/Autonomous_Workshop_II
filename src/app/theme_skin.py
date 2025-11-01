@@ -1,12 +1,14 @@
 # src/app/theme_skin.py
 """
-Neon F1 skin — premium look (no logic changes)
-- Cinematic backdrop with vignette + scanlines
-- Bigger start/goal icons, no white halos
-- Neon overlays (cyan=open, magenta=closed), pulsating mint path
-- Glass panel with subtle shadow
+Neon F1 skin — premium look (visuals only; no logic)
+- Backdrop: uses assets/backdrop.jpg if present; else a dark gradient
+- Grid: textures, BLACK borders, neon overlays, pulsing mint path
+- Start/Goal: clean icons (no halo)
+- Right Panel: frosted glass underlay only (viewer draws buttons/metrics on top)
+- Timer: shown in the right panel, below the Map buttons (reads viewer.get_run_time_str())
 
-Drop a dark wallpaper in: assets/backdrop.jpg
+This file deliberately avoids drawing the viewer’s text/buttons,
+so the viewer remains the source of truth for interactivity.
 """
 
 from __future__ import annotations
@@ -15,134 +17,121 @@ from pathlib import Path
 from typing import Tuple, Optional
 import pygame
 
-# --- palette / alpha overlays ---
-BLACK        = (0, 0, 0)
-GRAY_60      = (140, 140, 140)
-TEXT_LIGHT   = (230, 235, 240)
-ACCENT_GOLD  = (255, 210, 0)
-GREEN_NEON   = (0, 255, 200)
-CYAN_NEON_A  = (0, 150, 255, 110)
-MAGENTA_A    = (255, 0, 120, 90)
-GRASS_GREEN  = (144, 238, 144)
-ASPHALT_GRAY = (200, 200, 200)
+# ---- palette ----
+BLACK         = (0, 0, 0)
+TEXT_LIGHT    = (230, 235, 240)
+ACCENT_GOLD   = (255, 210, 0)
+GREEN_NEON    = (0, 255, 200)
+CYAN_NEON_A   = (0, 150, 255, 110)
+MAGENTA_A     = (255,   0, 120,  90)
+GRASS_GREEN   = (144, 238, 144)
+ASPHALT_GRAY  = (200, 200, 200)
 
-ASSETS_DIR = Path(__file__).resolve().parents[2] / "assets"
-BACKDROP_IMG = ASSETS_DIR / "backdrop.jpg"
+# panel colors
+PANEL_FILL    = (18, 20, 28, 190)
+PANEL_SHADOW  = (0, 0, 0, 140)
+
+# timer pill colors (no outline now)
+PILL_BG       = (24, 28, 36, 220)
+
+ASSETS_DIR    = Path(__file__).resolve().parents[2] / "assets"
+BACKDROP_IMG  = ASSETS_DIR / "backdrop.jpg"
 
 # caches
-_backdrop: Optional[pygame.Surface] = None
-_backdrop_scaled: dict[int, pygame.Surface] = {}
+_backdrop_raw: Optional[pygame.Surface] = None
+_backdrop_scaled_by_h: dict[int, pygame.Surface] = {}
 
-def _rounded_rect(surface: pygame.Surface, rect: pygame.Rect, color, radius=14, width=0):
+# ---------- helpers ----------
+def _rounded_rect(surface: pygame.Surface, rect: pygame.Rect, color, radius=16, width=0):
     pygame.draw.rect(surface, color, rect, width=width, border_radius=radius)
 
 def _glass_panel(screen: pygame.Surface, rect: pygame.Rect,
-                 fill_rgba=(24, 28, 36, 210), shadow_rgba=(0, 0, 0, 120)):
+                 fill_rgba=PANEL_FILL, shadow_rgba=PANEL_SHADOW):
+    if rect.width <= 0 or rect.height <= 0:
+        return
     shadow = pygame.Surface((rect.width + 18, rect.height + 18), pygame.SRCALPHA)
-    _rounded_rect(shadow, pygame.Rect(9, 9, rect.width, rect.height), shadow_rgba, radius=18)
+    _rounded_rect(shadow, pygame.Rect(9, 9, rect.width, rect.height), shadow_rgba, radius=20)
     screen.blit(shadow, (rect.x - 9, rect.y - 9))
     card = pygame.Surface(rect.size, pygame.SRCALPHA)
-    _rounded_rect(card, pygame.Rect(0, 0, rect.width, rect.height), fill_rgba, radius=18)
-    screen.blit(card, rect)
-
-def _glow(screen: pygame.Surface, center: Tuple[int, int], color: Tuple[int, int, int], r: int):
-    for a in (42, 28, 16, 8):
-        s = pygame.Surface((r * 4, r * 4), pygame.SRCALPHA)
-        pygame.draw.circle(s, (*color, a), (r * 2, r * 2), int(r * 1.6))
-        screen.blit(s, (center[0] - r * 2, center[1] - r * 2), special_flags=pygame.BLEND_ADD)
-    pygame.draw.circle(screen, color, center, r)
+    _rounded_rect(card, pygame.Rect(0, 0, rect.width, rect.height), fill_rgba, radius=20)
+    # subtle top sheen
+    hi = pygame.Surface((rect.width, max(18, rect.height // 12)), pygame.SRCALPHA)
+    pygame.draw.rect(hi, (255,255,255,18), hi.get_rect(), border_radius=18)
+    card.blit(hi, (0,0))
+    screen.blit(card, rect.topleft)
 
 def _load_backdrop():
-    global _backdrop
-    if _backdrop is not None:
+    global _backdrop_raw
+    if _backdrop_raw is not None:
         return
     if BACKDROP_IMG.exists():
         img = pygame.image.load(str(BACKDROP_IMG))
-        if pygame.display.get_surface(): img = img.convert()
-        _backdrop = img
+        _backdrop_raw = img.convert() if not img.get_masks()[3] else img.convert_alpha()
     else:
-        _backdrop = None
+        _backdrop_raw = None
 
 def _draw_backdrop(screen: pygame.Surface):
-    """Scale-and-fill backdrop with vignette + scanlines. Cached by height."""
+    """Backdrop: image if present; else gradient. Cached by height for speed."""
     _load_backdrop()
     w, h = screen.get_size()
-    if _backdrop is None:
-        screen.fill(BLACK)
-    else:
-        key = h
-        if key not in _backdrop_scaled:
-            # scale to cover (letterbox-safe)
-            bh = _backdrop.get_height()
-            bw = _backdrop.get_width()
-            scale = max(w / bw, h / bh)
-            tw, th = int(bw * scale), int(bh * scale)
-            if pygame.display.get_surface():
-                scaled = pygame.transform.smoothscale(_backdrop, (tw, th))
-            else:
-                scaled = pygame.transform.scale(_backdrop, (tw, th))
-            _backdrop_scaled[key] = scaled
-        img = _backdrop_scaled[key]
-        # center crop
-        x = (w - img.get_width()) // 2
-        y = (h - img.get_height()) // 2
-        screen.blit(img, (x, y))
+    if _backdrop_raw is None:
+        # gradient fallback
+        top = (24, 26, 32); bot = (36, 40, 48)
+        for y in range(h):
+            t = y / max(1, h-1)
+            c = (
+                int(top[0] + (bot[0]-top[0]) * t),
+                int(top[1] + (bot[1]-top[1]) * t),
+                int(top[2] + (bot[2]-top[2]) * t),
+            )
+            pygame.draw.line(screen, c, (0, y), (w, y))
+        return
 
-    # vignette (radial darkening)
+    key = h
+    if key not in _backdrop_scaled_by_h:
+        bw, bh = _backdrop_raw.get_width(), _backdrop_raw.get_height()
+        scale = max(w / bw, h / bh)
+        tw, th = int(bw * scale), int(bh * scale)
+        scaled = pygame.transform.smoothscale(_backdrop_raw, (tw, th))
+        _backdrop_scaled_by_h[key] = scaled
+
+    img = _backdrop_scaled_by_h[key]
+    x = (w - img.get_width()) // 2
+    y = (h - img.get_height()) // 2
+    screen.blit(img, (x, y))
+
+    # subtle vignette
     vignette = pygame.Surface((w, h), pygame.SRCALPHA)
     cx, cy = w // 2, h // 2
-    maxr = int((w**2 + h**2) ** 0.5 / 2)
+    maxr = int((w*w + h*h) ** 0.5 / 2)
     for r, a in ((maxr, 60), (int(maxr*0.75), 40), (int(maxr*0.5), 25)):
         s = pygame.Surface((w, h), pygame.SRCALPHA)
         pygame.draw.circle(s, (0,0,0,a), (cx, cy), r)
         vignette.blit(s, (0,0), special_flags=pygame.BLEND_RGBA_SUB)
     screen.blit(vignette, (0,0))
 
-    # scanlines
+    # faint scanlines
     scan = pygame.Surface((w, h), pygame.SRCALPHA)
-    for y in range(0, h, 4):
-        pygame.draw.line(scan, (0,0,0,20), (0, y), (w, y))
+    for yy in range(0, h, 4):
+        pygame.draw.line(scan, (0,0,0,18), (0, yy), (w, yy))
     screen.blit(scan, (0,0))
 
-# ---- public hooks ----
-def prepare(assets) -> None:
-    """Optional pre-caching and icon cleanup (kill white halos)."""
-    # Try to remove white halos by setting colorkey for near-white icons
-    for key in ("car", "flag"):
-        surf = assets._raw.get(key)
-        if not surf: continue
-        # If icon lacks alpha and is on white, treat white as transparent
-        tmp = surf.convert() if not surf.get_masks()[3] else surf.convert_alpha()
-        tmp.set_colorkey((255,255,255))
-        assets._raw[key] = tmp
-
-def draw(viewer, screen: pygame.Surface, assets) -> None:
-    _draw_backdrop(screen)
-    _draw_grid_neon(viewer, screen, assets)
-    _draw_panel_neon(viewer, screen)
-
-def _draw_grid_neon(v, screen, assets):
+def _draw_grid(v, screen: pygame.Surface, assets):
+    """F1-ish grid with BLACK borders, neon overlays & pulsing path (no start/goal halos)."""
     cs = v.cell_size
-    t = time.time()
+    ox, oy = v._grid_origin  # centered origin
 
     asphalt = assets.get("asphalt", cs)
-    grass   = assets.get("grass", cs)
-    tire    = assets.get("tire", cs)
-    car     = assets.get_centered("car",  cs, 1.10)   # bigger icons
-    flag    = assets.get_centered("flag", cs, 1.10)
-
-    # board shadow plate
-    grid_px_w = v.GRID_MARGIN*2 + v.grid.width * cs
-    grid_px_h = v.GRID_MARGIN*2 + v.grid.height* cs
-    plate = pygame.Surface((grid_px_w, grid_px_h), pygame.SRCALPHA)
-    pygame.draw.rect(plate, (0,0,0,90), plate.get_rect(), border_radius=18)
-    screen.blit(plate, (0,0))
+    grass   = assets.get("grass",   cs)
+    tire    = assets.get("tire",    cs)
+    car     = assets.get_centered("car",  cs, 2.0)
+    flag    = assets.get_centered("flag", cs, 1.20)
 
     # tiles
     for row in range(v.grid.height):
         for col in range(v.grid.width):
             val = v.grid.cells[row][col]
-            rect = pygame.Rect(v.GRID_MARGIN + col * cs, v.GRID_MARGIN + row * cs, cs, cs)
+            rect = pygame.Rect(ox + col*cs, oy + row*cs, cs, cs)
             is_block = (str(val) in v.grid.weights and v.grid.weights[str(val)] == "BLOCK") or val == 1
             if is_block:
                 if tire: screen.blit(tire, rect.topleft)
@@ -154,93 +143,120 @@ def _draw_grid_neon(v, screen, assets):
                 if asphalt: screen.blit(asphalt, rect.topleft)
                 else:       pygame.draw.rect(screen, ASPHALT_GRAY, rect)
 
-            pygame.draw.rect(screen, (255,255,255,35), rect, 1)  # thin bright stroke
+            # black border for each tile
+            pygame.draw.rect(screen, BLACK, rect, 1)
 
     # overlays: closed then open
-    for (col, row) in v.closed_set:
-        rect = pygame.Rect(v.GRID_MARGIN + col * cs, v.GRID_MARGIN + row * cs, cs, cs)
+    for (col,row) in v.closed_set:
+        rect = pygame.Rect(ox + col*cs, oy + row*cs, cs, cs)
         s = pygame.Surface((cs, cs), pygame.SRCALPHA); s.fill(MAGENTA_A)
         screen.blit(s, rect.topleft)
-    for (col, row) in v.open_set:
-        rect = pygame.Rect(v.GRID_MARGIN + col * cs, v.GRID_MARGIN + row * cs, cs, cs)
+    for (col,row) in v.open_set:
+        rect = pygame.Rect(ox + col*cs, oy + row*cs, cs, cs)
         s = pygame.Surface((cs, cs), pygame.SRCALPHA); s.fill(CYAN_NEON_A)
         screen.blit(s, rect.topleft)
 
-    # neon path with pulse
+     # path: glow + pulse
     if len(v.path) >= 2:
         pts = []
         for (col, row) in v.path:
-            cx = v.GRID_MARGIN + col * cs + cs // 2
-            cy = v.GRID_MARGIN + row * cs + cs // 2
+            cx = ox + col * cs + cs // 2
+            cy = oy + row * cs + cs // 2
             pts.append((cx, cy))
-        width = int(4 + 1.2 * abs(math.sin(t * 2.0)))
-        # outer glow
-        glow = pygame.Surface(screen.get_size(), pygame.SRCALPHA)
-        pygame.draw.lines(glow, (0, 255, 220, 60), False, pts, max(6, width+2))
-        screen.blit(glow, (0,0), special_flags=pygame.BLEND_ADD)
-        # core line
-        pygame.draw.lines(screen, GREEN_NEON, False, pts, max(4, width))
 
-    # start/goal with glow (no base circle)
-    _draw_badge_neon(v, screen, v.grid.start, car,  (80, 160, 255))
-    _draw_badge_neon(v, screen, v.grid.goal,  flag, (255, 100, 120))
+        t = time.time()
 
-def _draw_badge_neon(v, screen, cell, icon: Optional[pygame.Surface], color):
-    cs = v.cell_size
-    col, row = cell
-    cx = v.GRID_MARGIN + col * cs + cs // 2
-    cy = v.GRID_MARGIN + row * cs + cs // 2
-    r  = max(8, cs // 2)
-    # glow only (no solid circle) → prevents white base look
-    for a in (40, 24, 12):
-        s = pygame.Surface((r*4, r*4), pygame.SRCALPHA)
-        pygame.draw.circle(s, (*color, a), (r*2, r*2), int(r*1.4))
-        screen.blit(s, (cx - r*2, cy - r*2), special_flags=pygame.BLEND_ADD)
-    if icon is not None:
-        rect = icon.get_rect(center=(cx, cy))
-        screen.blit(icon, rect)
+        if getattr(v, "state", "") == "Done":
+            # ---- FINISH EFFECT: pulse color white <-> green ----
+            # k in [0,1] → blend(white -> green) and back
+            k = 0.5 * (1.0 + math.sin(t * 8.0))
+            white = (127, 255, 0)
+            green = (144, 238, 144)  # mint-ish green; tweak if you want pure (0,255,0)
+            col = (
+                int(white[0] * (1 - k) + green[0] * k),
+                int(white[1] * (1 - k) + green[1] * k),
+                int(white[2] * (1 - k) + green[2] * k),
+            )
+            width = 6
 
-def _draw_panel_neon(v, screen):
-    grid_px_w = v.GRID_MARGIN * 2 + v.grid.width * v.cell_size
-    panel_rect = pygame.Rect(grid_px_w, 0, v.PANEL_W, v.GRID_MARGIN * 2 + v.grid.height * v.cell_size)
-    _glass_panel(screen, panel_rect, fill_rgba=(18, 20, 28, 190), shadow_rgba=(0, 0, 0, 140))
+            # soft outer glow
+            glow = pygame.Surface(screen.get_size(), pygame.SRCALPHA)
+            pygame.draw.lines(glow, (col[0], col[1], col[2], 70), False, pts, width + 2)
+            screen.blit(glow, (0, 0), special_flags=pygame.BLEND_ADD)
 
-    x0 = panel_rect.x + 16
-    y  = panel_rect.y + 16
+            # core stroke
+            pygame.draw.lines(screen, col, False, pts, width)
 
-    def line(text: str, big=False, color=TEXT_LIGHT):
-        nonlocal y
-        f = v.font_big if big else v.font
-        surf = f.render(text, True, color)
-        screen.blit(surf, (x0, y))
-        y += surf.get_height() + 8
+        else:
+            # ---- RUNNING / IDLE: neon mint with width pulse (existing look) ----
+            width = max(5, int(4 + 1.2 * abs(math.sin(t * 2.0))))
+            glow = pygame.Surface(screen.get_size(), pygame.SRCALPHA)
+            pygame.draw.lines(glow, (0, 255, 220, 60), False, pts, max(7, width + 2))
+            screen.blit(glow, (0, 0), special_flags=pygame.BLEND_ADD)
+            pygame.draw.lines(screen, GREEN_NEON, False, pts, width)
 
-    line("A* vs Dijkstra", big=True, color=ACCENT_GOLD)
-    mode = getattr(v, "MODE", "student")
-    line(f"Mode: {mode}")
-    line(f"Map: {v.selected_map_key}")
-    line(f"Algo: {v.selected_algo}")
-    line(f"State: {v.state}")
-    line(f"Speed: {v.steps_per_sec} steps/s")
+    # start / goal — clean icons, NO halo
+    sx = ox + v.grid.start[0]*cs + cs//2
+    sy = oy + v.grid.start[1]*cs + cs//2
+    gx = ox + v.grid.goal[0]*cs  + cs//2
+    gy = oy + v.grid.goal[1]*cs  + cs//2
+    if car  is not None: screen.blit(car,  car.get_rect(center=(sx, sy)))
+    if flag is not None: screen.blit(flag, flag.get_rect(center=(gx, gy)))
 
-    y += 6
-    line("Metrics", color=ACCENT_GOLD)
-    m = getattr(v, "_last_metrics", {})
-    for k, label in (("popped","Popped"),("open_size","Open"),("closed_count","Closed"),
-                     ("path_len","Path Len"),("total_cost","Total Cost")):
-        val = m.get(k, None)
-        if val is not None:
-            surf = v.font.render(f"{label:>11}: {val}", True, TEXT_LIGHT)
-            screen.blit(surf, (x0, y)); y += surf.get_height() + 4
+def _draw_timer_in_panel(v, screen: pygame.Surface):
+    """Timer displayed inside the right panel, directly below the Map buttons."""
+    if not hasattr(v, "get_run_time_str"):
+        return
+    rb = getattr(v, "_right_band", None)
+    if not isinstance(rb, pygame.Rect) or rb.width <= 0:
+        return
 
-    y += 8
-    line("Controls", color=ACCENT_GOLD)
-    for c in [
-        "[1/2/3] Switch Map",
-        "[D/A]   Dijkstra / A*",
-        "[R]     Reset   [N] Step",
-        "[SPACE] Run / Pause",
-        "[+/-]   Speed   [Q] Quit",
-        "[F]     Fullscreen (if enabled)",  # viewer tweak below
-    ]:
-        screen.blit(v.font.render(c, True, TEXT_LIGHT), (x0, y)); y += 22
+    # Anchor under Map 3 button if it exists; else place near the top of panel
+    baseline_y = rb.y + 10
+    if hasattr(v, "btn_map3") and isinstance(v.btn_map3.rect, pygame.Rect):
+        baseline_y = v.btn_map3.rect.bottom + 16
+
+    label = f"Run Time  {v.get_run_time_str()}"
+    f = v.font
+    surf = f.render(label, True, TEXT_LIGHT)
+
+    pad_x, pad_y = 12, 6
+    w = min(rb.width - 32, surf.get_width() + pad_x*2)
+    h = surf.get_height() + pad_y*2
+    x = rb.x + 16
+    y = min(rb.bottom - h - 12, baseline_y)
+
+    # pill (no stroke/outline)
+    pill = pygame.Surface((w, h), pygame.SRCALPHA)
+    _rounded_rect(pill, pill.get_rect(), PILL_BG, radius=12)
+    screen.blit(pill, (x, y))
+    screen.blit(surf, (x + pad_x, y + pad_y))
+
+def prepare(assets) -> None:
+    """Optional icon cleanup (remove white halos from car/flag icons)."""
+    for key in ("car", "flag"):
+        surf = assets._raw.get(key)
+        if not surf: continue
+        tmp = surf.convert() if not surf.get_masks()[3] else surf.convert_alpha()
+        tmp.set_colorkey((255,255,255))
+        assets._raw[key] = tmp
+
+def draw(viewer, screen: pygame.Surface, assets) -> None:
+    """
+    Draw order:
+      1) backdrop
+      2) grid with neon overlays
+      3) frosted right panel underlay
+      4) timer pill inside panel (under Map buttons)
+      (viewer draws text/buttons afterwards)
+    """
+    _draw_backdrop(screen)
+    _draw_grid(viewer, screen, assets)
+
+    # Right panel underlay that matches viewer._right_band
+    rb = getattr(viewer, "_right_band", None)
+    if isinstance(rb, pygame.Rect):
+        _glass_panel(screen, rb, fill_rgba=PANEL_FILL, shadow_rgba=PANEL_SHADOW)
+
+    # Timer inside the panel, placed under the Map buttons
+    _draw_timer_in_panel(viewer, screen)
