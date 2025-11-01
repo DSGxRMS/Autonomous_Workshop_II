@@ -1,7 +1,6 @@
 # Exercise 1 — Dijkstra on Map-1 (Intro)
 
-**Goal:** Implement Dijkstra’s shortest path on `maps/01_intro_dijkstra.json`
-(25×25, 4-connected, uniform cost = 1) and produce the optimal path from **start → goal**.
+**Goal:** Implement Dijkstra’s shortest path on `maps/01_intro_dijkstra.json` and produce the optimal path from **start to goal**.
 
 ---
 
@@ -70,8 +69,3 @@ Return the **path** as an **ordered list of grid cells** from start → goal usi
 </details>
 
 ---
-
-## What to submit (in-session)
-- Your **path length** (number of steps).
-- A screenshot of the viewer with your **final path**.
-- (Optional) Node expansion count (open + closed) for discussion.

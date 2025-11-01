@@ -62,9 +62,3 @@ Return the **ordered path** start → goal and the **total path cost**.
 </details>
 
 ---
-
-## What to submit
-- **Total cost** of your path (numeric).
-- **Path length** (steps) for context.
-- A screenshot of your final path.
-- (Optional) Node expansions for Dijkstra vs A\* under weights.

@@ -1,6 +1,6 @@
-# Exercise 2 — A* on Map-2 (Small Maze)
+# Exercise 2 — A* on Map-2 
 
-**Goal:** Implement **A\*** on `maps/02_small_astar.json` (20×20, 4-connected, uniform cost = 1) and produce the optimal path **start → goal**, showing fewer expansions than Dijkstra.
+**Goal:** Implement **A\*** on `maps/02_small_astar.json` (20×20, 4-connected, uniform cost = 1) and produce the optimal path **start to goal**, showing fewer expansions than Dijkstra.
 
 ---
 
@@ -68,7 +68,3 @@ Return the **ordered path** start → goal.
 
 ---
 
-## What to submit
-- **Path length** (steps).
-- **Node expansions** (open + closed) for A\* and (if attempted) Dijkstra on the same map.
-- A screenshot of the viewer with the final path.
