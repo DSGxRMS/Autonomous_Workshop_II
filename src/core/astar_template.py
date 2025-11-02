@@ -76,13 +76,14 @@ class AStarAlgo:
 
             ######################
             ######################
-            # FILL CODE HERE (NEIGHBOR_FILTER)
+            # FILL CODE HERE (NEIGHBOR_FILTER) 
+            # Add the condition to check if n is in bounds and not blocked
         
         
             ######################
             ######################
 
-            pass  
+            pass  #Remove this after adding your code
         return out
 
     def _min_traversable_cost(self) -> int:
@@ -196,12 +197,12 @@ class AStarAlgo:
             ######################
             ######################
             # FILL CODE HERE (RELAXATION_VALUE)
+            # Compute the relaxation value alt but now with an aditional cost (step_cost)
             # alt = 
 
             ######################
             ######################
 
-            # FILL CODE HERE (UPDATE_AND_PUSH)
             if alt < self.g.get(v, inf):
                 self.g[v] = alt
                 self.parent[v] = u

@@ -54,7 +54,7 @@ class DijkstraAlgo:
         ######################
         # FILL CODE HERE for (N NEIGHBOR_CANDIDATES)
         candidates: List[Cell] = [
-            
+            # Think about the four possible 4-connected moves (not taking diagonals)
             
             
         ]
@@ -66,8 +66,7 @@ class DijkstraAlgo:
             
             if self.grid.in_bounds(n) and not self.grid.is_block(n):
                 out.append(n)
-
-            pass  # keep 'pass' so file runs before they fill; harmless once they add code
+                 
         return out
 
     def _reconstruct_path(self, end: Cell) -> List[Cell]:
@@ -81,7 +80,7 @@ class DijkstraAlgo:
             ######################
             ######################
             # FILL CODE HERE for (BACKTRACK_STEP)
-            
+            # Think about what our current cell is and how we can get to its parent
             # cur = 
             
             ######################
@@ -118,6 +117,7 @@ class DijkstraAlgo:
         ######################
         ######################
         # FILL CODE HERE for (STOP_CONDITION)
+        # Think about when we should stop the algorithm  - set self.done and also reconstruct path using the defined function
         # if u == 
         
         
@@ -133,7 +133,8 @@ class DijkstraAlgo:
             ######################
             ######################
             # FILL CODE HERE for (RELAXATION_VALUE with Uniform Cost)
-            # alt = 
+            # We discussed cost is 1 so what do we add this to? Replace the None value
+            alt = None 
             ######################
             ######################
 
