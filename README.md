@@ -54,6 +54,10 @@ pygame>=2.6.1
 
 **simply drag and drop the launcher.pyw file inside the terminal:**
 
+```
+python3 <path to file by drag and drop>
+```
+
 If you see only a white/blank window, give it a second. If it persists, see **Troubleshooting**.
 
 ---
