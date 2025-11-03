@@ -28,7 +28,7 @@ You don’t need heavy ML/robotics background. If you can run Python and edit a 
 **Windows (PowerShell)**
 ```powershell
 python -m venv .venv
-. .\.venv\Scripts\Activate.ps1
+-ExecutionPolicy Bypass -File . .\.venv\Scripts\Activate.ps1
 ```
 
 **macOS / Linux**
