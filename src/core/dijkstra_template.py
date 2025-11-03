@@ -55,7 +55,7 @@ class DijkstraAlgo:
         # FILL CODE HERE for (N NEIGHBOR_CANDIDATES)
         candidates: List[Cell] = [
             # Think about the four possible 4-connected moves (not taking diagonals)
-            
+            (x,y+1), ...
             
         ]
         ######################
@@ -80,9 +80,9 @@ class DijkstraAlgo:
             ######################
             ######################
             # FILL CODE HERE for (BACKTRACK_STEP)
-            # Think about what our current cell is and how we can get to its parent
+            # Think about what our current cell is and how we can get to its parent (self.parent)
             # cur = 
-            
+            cur = se
             ######################
             ######################
 
