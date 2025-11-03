@@ -62,7 +62,7 @@ class DijkstraAlgo:
         ######################
 
         out: List[Cell] = []
-        for n in candidates:
+        for n in candidates:  # Filter out neighbours 
             
             if self.grid.in_bounds(n) and not self.grid.is_block(n):
                 out.append(n)
@@ -82,7 +82,6 @@ class DijkstraAlgo:
             # FILL CODE HERE for (BACKTRACK_STEP)
             # Think about what our current cell is and how we can get to its parent (self.parent)
             # cur = 
-            cur = se
             ######################
             ######################
 
@@ -170,7 +169,7 @@ Neighbor filter: keep only “in bounds” and “not a wall”.
 
 Stop condition: “stop when you pop the goal” (not when you first push).
 
-Relaxation value: alt = (uniform cost).
+Relaxation value: alt = (uniform cost) to g[u].
 
 Backtrack step: Update cur to its parent.
 '''

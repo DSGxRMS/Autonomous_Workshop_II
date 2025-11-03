@@ -77,7 +77,7 @@ class AStarAlgo:
             ######################
             ######################
             # FILL CODE HERE (NEIGHBOR_FILTER) 
-            # Add the condition to check if n is in bounds and not blocked
+            # Add the condition to check if n is in bounds and not blocked (deja vu?)
         
         
             ######################
