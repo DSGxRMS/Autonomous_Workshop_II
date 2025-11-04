@@ -55,7 +55,7 @@ class DijkstraAlgo:
         # FILL CODE HERE for (N NEIGHBOR_CANDIDATES)
         candidates: List[Cell] = [
             # Think about the four possible 4-connected moves (not taking diagonals)
-            (x,y+1), ...
+            #(x,y+1), ...
             
         ]
         ######################
