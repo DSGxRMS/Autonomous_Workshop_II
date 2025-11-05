@@ -108,10 +108,10 @@ class AStarAlgo:
             return 0
         (x, y) = c
         (gx, gy) = self.grid.goal
-        # Note how the heuristic is implemented
-        dx = abs(gx - x)
-        dy = abs(gy - y)
-        return (dx + dy) * self._min_traversable_cost()
+        # # Note how the heuristic is implemented
+        # dx = 
+        # dy = 
+        # return (dx + dy) * self._min_traversable_cost()
 
     def _reconstruct_path(self, end: Cell) -> List[Cell]:
         path: List[Cell] = []
